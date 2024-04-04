@@ -1,4 +1,4 @@
-Script Modeling Spectral Signatures - New Approach
+# Script Modeling Spectral Signatures - New Approach
 
 ```{r}
 #Necessary libraries are loaded
@@ -87,7 +87,7 @@ df_graph
 
 
 
-*P-Value Behavior Graphs in Different Factors*
+**P-Value Behavior Graphs in Different Factors**
 
 ```{r}
 #Nitrogen p values
@@ -198,7 +198,7 @@ ggplot(df_graph, aes(x = inter_2, y = inter)) +
 ```
 
 
-*Creation of regions for each factor*
+**Creation of regions for each factor**
 ```{r}
 #Interaction regions
 df_inter=data.frame(inter=df_graph$inter,
@@ -529,6 +529,7 @@ df_nit%>%
         legend.position = 'right',
         legend.margin = margin(0,0,180,-45))
 ```
+**Graphing of reflectances for Water levels**
 ```{r}
 df_wat=df[,-c(1)]
 df_wat=df_wat %>%
