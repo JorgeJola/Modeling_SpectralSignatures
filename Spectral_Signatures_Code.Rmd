@@ -1,0 +1,561 @@
+Script Modeling Spectral Signatures - New Approach
+
+```{r}
+#Necessary libraries are loaded
+library(limma)
+library(readxl)
+library(ggplot2)
+library(Biobase)
+library(dplyr)
+library(tidyr)
+library(gridExtra)
+```
+
+```{r}
+#Spectral signature data for day 13 is imported
+df=read_xlsx("C:/Users/jorge/OneDrive/Escritorio/Publicaciones/TESIS/Spectral_signatures.xlsx")
+```
+
+```{r}
+# The expression data variable stores a dataframe of the transposed matrix of the imported spectral signature data
+expression_data=as.data.frame(t(df[,3:2153]))
+
+# Design matrix is created to perform analysis of variance or some linear model
+design=model.matrix(~NITROGEN*WATER,data = df)
+
+
+# The model is fitted by inserting the dataframe with the spectral signatures and the created design matrix
+mod=lmFit(expression_data,design)
+
+
+#The results of the statistical model are adjusted using empirical Bayes
+fit= eBayes(mod)
+summary(fit)
+
+
+# Decision tests are performed based on the results of the fitted model in relation to the nitrogen variable
+results=decideTests(fit[,'NITROGEN'])
+summary(results)
+
+#P-values are extracted from the factors of the empirical Bayes model
+nitro=fit$p.value[,2]
+water=fit$p.value[,3]
+inter=fit$p.value[,4]
+```
+
+
+```{r}
+# P-values are extracted for the factors for the traditional model
+
+df$NITROGEN=as.factor(df$NITROGEN)
+df$WATER=ifelse(df$WATER=='CW','I','WI')
+df$WATER=as.factor(df$WATER)
+dim(df)
+
+#Nitrogen --> 17
+#Water --> 18
+#Interaction --> 19
+
+#P-values for the interaction are extracted
+inter_2=c()
+for (i in 3:2153) {
+  mod <- summary(aov(df[[i]] ~ df$NITROGEN * df$WATER, data = df))
+  pvalue=unlist(mod)[[19]]
+  inter_2=c(inter_2,pvalue)
+}
+
+#P-values for Nitrogen are extracted
+nitro_2=c()
+for (i in 3:2153) {
+  mod <- summary(aov(df[[i]] ~ df$NITROGEN * df$WATER, data = df))
+  pvalue=unlist(mod)[[17]]
+  nitro_2=c(nitro_2,pvalue)
+}
+
+#P-values for water are extracted
+water_2=c()
+for (i in 3:2153) {
+  mod <- summary(aov(df[[i]] ~ df$NITROGEN * df$WATER, data = df))
+  pvalue=unlist(mod)[[18]]
+  water_2=c(water_2,pvalue)
+}
+
+#All p values of the factors are grouped in a dataframe
+df_graph=data.frame(x=seq(350,2500),nitro,nitro_2,water,water_2,inter,inter_2)
+df_graph
+```
+
+
+
+*P-Value Behavior Graphs in Different Factors*
+
+```{r}
+#Nitrogen p values
+ggplot(df_graph,aes(x=x))+
+  geom_point(aes(y=nitro,color='black'),size=1,shape=16)+
+  geom_point(aes(y=nitro_2,color='red'),size=1,shape=16)+
+  geom_hline(yintercept = 0.05, color = "darkblue",linetype='dashed') +
+  theme_minimal()+
+  scale_color_manual(values = c("#008B8B",'orange'), labels = c( "EBA","CA")) +
+  xlab('Wavelength (nm)')+
+  ylab("Nitrogen (p-values)")+
+  labs(color = "Method")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+#Water p values
+
+ggplot(df_graph,aes(x=x))+
+  geom_point(aes(y=water,color='black'),size=1,shape=16)+
+  geom_point(aes(y=water_2,color='red'),size=1,shape=16)+
+  geom_hline(yintercept = 0.05, color = "darkblue",linetype='dashed') +
+  theme_minimal()+
+  scale_color_manual(values = c("#008B8B",'orange'), labels = c( "EBA","CA")) +
+  xlab('Wavelength (nm)')+
+  ylab("Hydric Stress (p-values)")+
+  labs(color = "Method")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+```{r}
+#Interaction p values
+
+ggplot(df_graph,aes(x=x))+
+  geom_point(aes(y=inter,color='black',size=1,shape=16),size=1,shape=16)+
+  geom_point(aes(y=inter_2,color='red',size=1,shape=16),size=1,shape=16)+
+  geom_hline(yintercept = 0.05, color = "darkblue",linetype='dashed') +
+  theme_minimal()+
+  scale_color_manual(values = c("#008B8B",'orange'), labels = c( "EBA","CA")) +
+  xlab('Wavelength (nm)')+
+  ylab("Interaction (p-values)")+
+  labs(color = "Method")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+```{r}
+# Nitrogen Matrix
+g1=ggplot(df_graph, aes(x = nitro_2, y = nitro)) +
+  geom_point(shape = 16, size = 1) +
+  xlim(-0.1, 1) +
+  ylim(-0.1, 1) +
+  labs(title = "Nitrogen (p-values)",
+       x = "Classical Approach",
+       y = "Empirical Bayesian Approach") +
+  geom_text(aes(label = 'A:467'), x = -0.08, y = 0.9, color = "darkblue", size = 2.5) +
+  geom_text(aes(label = 'C:1117'), x = -0.08, y = -0.05, color = "darkblue", size = 2.5) +
+  geom_text(aes(label = 'B:378'), x = 0.9, y = 0.9, color = "darkblue", size = 2.5) +
+  geom_text(aes(label = 'D:189'), x = 0.9, y = -0.05, color = "darkblue", size = 2.5)+     geom_hline(yintercept = 0.05, color = "darkred", size = 0.6,linetype = "dashed") +
+  geom_vline(xintercept = 0.05, color = "darkred", size = 0.6,linetype = "dashed") +
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+```{r}
+# Water Matrix
+g2=ggplot(df_graph, aes(x = water_2, y = water)) +
+  geom_point(shape = 16, size = 1) +
+  xlim(-0.1, 1) +
+  ylim(-0.1, 1) +
+  labs(title = "Hydric Stress (p-values)",
+       x = "Classical Approach",
+       y = "") +
+  geom_text(aes(label = 'A:845'), x = -0.08, y = 0.9, color = "darkblue", size = 2.5) +
+  geom_text(aes(label = 'C:0'), x = -0.08, y = 0, color = "darkblue", size = 2.5) +
+  geom_text(aes(label = 'B:1306'), x = 0.98, y = 0.9, color = "darkblue", size = 2.5) +
+  geom_text(aes(label = 'D:0'), x = 0.98, y = 0, color = "darkblue", size = 2.5)+
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "blue", size = 0.5) +
+  geom_hline(yintercept = 0.05, color = "darkred", size = 0.6,linetype = "dashed") +
+  geom_vline(xintercept = 0.05, color = "darkred", size = 0.6,linetype = "dashed") +
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#Paste both graphs
+grid.arrange(
+  g1 + annotate("text", x = 1, y = Inf, label = "A", vjust = 1, hjust = 22, size = 5),
+  g2 + annotate("text", x = 1, y = Inf, label = "B", vjust = 1, hjust = 22, size = 5),
+  nrow = 1,
+  widths = c(0.7, 0.7))
+
+```
+
+
+```{r}
+# Interaction Matrix
+ggplot(df_graph, aes(x = inter_2, y = inter)) +
+  geom_point(shape = 16, size = 1) +
+  xlim(-0.1, 1) +
+  ylim(-0.1, 1) +
+  labs(title = "Interaction [Hydric Stress-Nitrogen] (p-values)",
+       x = "Classical Approach",
+       y = "Empirical Bayesian Approach") +
+  geom_text(aes(label = 'A:0'), x = -0.08, y = 0.9, color = "darkblue", size = 4) +
+  geom_text(aes(label = 'C:0'), x = -0.08, y = -0.03, color = "darkblue", size = 4) +
+  geom_text(aes(label = 'B:2146'), x = 1, y = 0.9, color = "darkblue", size = 4) +
+  geom_text(aes(label = 'D:5'), x = 1, y = -0.03, color = "darkblue", size = 4) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "blue", size = 0.5) +
+  geom_hline(yintercept = 0.05, color = "darkred", size = 0.6,linetype = "dashed") +
+  geom_vline(xintercept = 0.05, color = "darkred", size = 0.6,linetype = "dashed") +
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+*Creation of regions for each factor*
+```{r}
+#Interaction regions
+df_inter=data.frame(inter=df_graph$inter,
+                    inter_2=df_graph$inter_2)
+
+df_inter <- df_inter %>%
+  mutate(region = case_when(
+    df_inter$inter>0.05&df_inter$inter_2<0.05~ 'A',
+    df_inter$inter>0.05&df_inter$inter_2>0.05 ~ 'B',
+    df_inter$inter<0.05&df_inter$inter_2<0.05 ~ 'C',
+    df_inter$inter<0.05&df_inter$inter_2>0.05 ~ 'D',
+    TRUE ~ 'F'  # Valor por defecto si ninguna condición se cumple
+  ))
+
+table(df_inter$region)
+```
+```{r}
+#Nitrogen regions
+df_nitro=data.frame(nitro=df_graph$nitro,
+                    nitro_2=df_graph$nitro_2)
+
+df_nitro <- df_nitro %>%
+  mutate(region = case_when(
+    df_nitro$nitro>0.05&df_nitro$nitro_2<0.05~ 'A',
+    df_nitro$nitro>0.05&df_nitro$nitro_2>0.05 ~ 'B',
+    df_nitro$nitro<0.05&df_nitro$nitro_2<0.05 ~ 'C',
+    df_nitro$nitro<0.05&df_nitro$nitro_2>0.05 ~ 'D',
+    TRUE ~ 'F'))
+
+table(df_nitro$region)
+```
+```{r}
+#Water regions
+df_water=data.frame(water=df_graph$water,
+                    water_2=df_graph$water_2)
+
+df_water <- df_water %>%
+  mutate(region = case_when(
+    df_water$water>0.05&df_water$water_2<0.05~ 'A',
+    df_water$water>0.05&df_water$water_2>0.05 ~ 'B',
+    df_water$water<0.05&df_water$water_2<0.05 ~ 'C',
+    df_water$water<0.05&df_water$water_2>0.05 ~ 'D',
+    TRUE ~ 'F'))
+
+table(df_water$region)
+```
+```{r}
+# Extract the nitrogen regions
+zone_A=c()
+for (j in seq(0.001,0.1,0.001)) {
+  lis=c()
+  for (i in seq(1,2151)) {
+    if(df_nitro[i,1]>=j&df_nitro[i,2]<j){
+    lis=c(lis,df_nitro[i,3])}
+  }
+  zone_A=c(zone_A,length(lis))
+}
+
+zone_B=c()
+for (j in seq(0.001,0.1,0.001)) {
+  lis=c()
+  for (i in seq(1,2151)) {
+    if(df_nitro[i,1]>=j&df_nitro[i,2]>=j){
+    lis=c(lis,df_nitro[i,3])}
+  }
+  zone_B=c(zone_B,length(lis))
+}
+
+zone_C=c()
+for (j in seq(0.001,0.1,0.001)) {
+  lis=c()
+  for (i in seq(1,2151)) {
+    if(df_nitro[i,1]<j&df_nitro[i,2]<j){
+    lis=c(lis,df_nitro[i,3])}
+  }
+  zone_C=c(zone_C,length(lis))
+}
+
+zone_D=c()
+for (j in seq(0.001,0.1,0.001)) {
+  lis=c()
+  for (i in seq(1,2151)) {
+    if(df_nitro[i,1]<j&df_nitro[i,2]>=j){
+    lis=c(lis,df_nitro[i,3])}
+  }
+  zone_D=c(zone_D,length(lis))
+}
+
+#New dataframe is created where the regions for Nitrogen will be stored.
+
+d_alpha_nitro <- data.frame(
+  x = rep(seq(0.001, 0.1, 0.001), 4),
+  y = c(zone_D, zone_C, zone_A, zone_B),
+  zone = rep(c("Region D", "Region C", "Region A", "Region B"), each = length(seq(0.001, 0.1, 0.001)))
+)
+
+# Create the graph using ggplot
+
+ggplot(d_alpha_nitro, aes(x = x, y = y, color = zone)) +
+  geom_line(size = 1) +
+  geom_point(data = d_alpha_nitro[d_alpha_nitro$x == 0.05, ], aes(x = x, y = y), color = "black", size = 2) + 
+  scale_y_continuous(limits = c(0, 1350), breaks = seq(0, 2151, by = 200)) +
+  scale_x_continuous(breaks = seq(0, 0.1, by = 0.01)) +
+  labs(title = "Regions in nitrogen", y = "Confusion matrix counts", x = expression(alpha~"-Dynamic ")) +
+  theme_minimal() +
+  theme(legend.position = "top",
+        plot.title = element_text(hjust = 0.5),
+        legend.margin = margin(0,0,-35,0)) +
+  guides(color = guide_legend(title = NULL)) +
+  scale_color_manual(values = c("Region D" = "blue", "Region C" = "red", "Region A" = "green", "Region B" = "purple"))
+
+```
+
+```{r}
+# Extract the water regions
+
+zone_A=c()
+for (j in seq(0.001,0.1,0.001)) {
+  lis=c()
+  for (i in seq(1,2151)) {
+    if(df_water[i,1]>=j&df_water[i,2]<j){
+    lis=c(lis,df_water[i,3])}
+  }
+  zone_A=c(zone_A,length(lis))
+}
+
+zone_B=c()
+for (j in seq(0.001,0.1,0.001)) {
+  lis=c()
+  for (i in seq(1,2151)) {
+    if(df_water[i,1]>=j&df_water[i,2]>=j){
+    lis=c(lis,df_water[i,3])}
+  }
+  zone_B=c(zone_B,length(lis))
+}
+
+zone_C=c()
+for (j in seq(0.001,0.1,0.001)) {
+  lis=c()
+  for (i in seq(1,2151)) {
+    if(df_water[i,1]<j&df_water[i,2]<j){
+    lis=c(lis,df_water[i,3])}
+  }
+  zone_C=c(zone_C,length(lis))
+}
+
+zone_D=c()
+for (j in seq(0.001,0.1,0.001)) {
+  lis=c()
+  for (i in seq(1,2151)) {
+    if(df_water[i,1]<j&df_water[i,2]>=j){
+    lis=c(lis,df_water[i,3])}
+  }
+  zone_D=c(zone_D,length(lis))
+}
+
+# New dataframe is created where the regions for Water will be stored.
+
+d_alpha_water <- data.frame(
+  x = rep(seq(0.001, 0.1, 0.001), 4),
+  y = c(zone_D, zone_C, zone_A, zone_B),
+  zone = rep(c("Region D", "Region C", "Region A", "Region B"), each = length(seq(0.001, 0.1, 0.001)))
+)
+
+# Create the graph using ggplot
+
+ggplot(d_alpha_water, aes(x = x, y = y, color = zone)) +
+  geom_line(size = 1) +
+  geom_point(data = d_alpha_water[d_alpha_water$x == 0.05, ], aes(x = x, y = y), color = "black", size = 2) + 
+  scale_y_continuous(limits = c(0, 2200), breaks = seq(0, 2151, by = 200)) +
+  scale_x_continuous(breaks = seq(0, 0.1, by = 0.01)) +
+  labs(title = "Regions in hydric stress", y = "", x = expression(alpha~"-Dynamic ")) +
+  theme_minimal() +
+  theme(legend.position = "top",plot.title = element_text(hjust = 0.5),
+        legend.margin = margin(0,0,-25,15),
+        legend.text = element_text(size = 6)) +
+  guides(color = guide_legend(title = NULL)) +
+  scale_color_manual(values = c("Region D" = "blue", "Region C" = "red", "Region A" = "green", "Region B" = "purple"))
+
+
+```
+
+```{r}
+# Extract the interaction regions
+
+zone_A=c()
+for (j in seq(0.001,0.1,0.001)) {
+  lis=c()
+  for (i in seq(1,2151)) {
+    if(df_inter[i,1]>=j&df_inter[i,2]<j){
+    lis=c(lis,df_inter[i,3])}
+  }
+  zone_A=c(zone_A,length(lis))
+}
+
+zone_B=c()
+for (j in seq(0.001,0.1,0.001)) {
+  lis=c()
+  for (i in seq(1,2151)) {
+    if(df_inter[i,1]>=j&df_inter[i,2]>=j){
+    lis=c(lis,df_inter[i,3])}
+  }
+  zone_B=c(zone_B,length(lis))
+}
+
+zone_C=c()
+for (j in seq(0.001,0.1,0.001)) {
+  lis=c()
+  for (i in seq(1,2151)) {
+    if(df_inter[i,1]<j&df_inter[i,2]<j){
+    lis=c(lis,df_inter[i,3])}
+  }
+  zone_C=c(zone_C,length(lis))
+}
+
+zone_D=c()
+for (j in seq(0.001,0.1,0.001)) {
+  lis=c()
+  for (i in seq(1,2151)) {
+    if(df_inter[i,1]<j&df_inter[i,2]>=j){
+    lis=c(lis,df_inter[i,3])}
+  }
+  zone_D=c(zone_D,length(lis))
+}
+
+# New dataframe is created where the regions for Interaction will be stored.
+
+d_alpha_inter<- data.frame(
+  x = rep(seq(0.001, 0.1, 0.001), 4),
+  y = c(zone_D, zone_C, zone_A, zone_B),
+  zone = rep(c("Region D", "Region C", "Region A", "Region B"), each = length(seq(0.001, 0.1, 0.001)))
+)
+
+# Create the graph using ggplot
+
+ggplot(d_alpha_inter, aes(x = x, y = y, color = zone)) +
+  geom_line(size = 1) +
+  geom_point(data = d_alpha_inter[d_alpha_inter$x == 0.05, ], aes(x = x, y = y), color = "black", size = 2) + 
+  scale_y_continuous(limits = c(0, 2200), breaks = seq(0, 2151, by = 200)) +
+  scale_x_continuous(breaks = seq(0, 0.1, by = 0.01)) +
+  labs(title = "Regions in interaction", y = "Confusion matrix counts", x = expression(alpha~"-Dynamic ")) +
+  theme_minimal() +
+  theme(legend.position = "top",plot.title = element_text(hjust = 0.5),
+        legend.margin = margin(0,0,-25,15),
+        legend.text = element_text(size = 6)) +
+  guides(color = guide_legend(title = NULL)) +
+  scale_color_manual(values = c("Region D" = "blue", "Region C" = "red", "Region A" = "green", "Region B" = "purple"))
+
+```
+
+**Graphing of reflectances for treatments**
+```{r}
+df2=df
+
+df2$treat=interaction(df$NITROGEN,df$WATER)
+df2=df2[,-c(1,2)]
+
+df2=df2 %>%
+  group_by(treat) %>%
+  summarise_all(.funs = list(mean = mean), na.rm = TRUE)
+
+df2=df2%>% 
+  pivot_longer(cols=-treat,names_to = 'Bands')
+
+df2= df2%>%
+  mutate(Bands = gsub("_mean","", df2$Bands))
+
+df2$Bands <- factor(df2$Bands, levels = unique(df2$Bands))
+
+df2$treat=as.factor(df2$treat)
+
+colnames(df2)[1]='Treatment'
+
+df2%>%
+  ggplot() +
+  geom_rect(aes(NULL,NULL,xmin=450-350,xmax=495-350),
+            ymin=0,ymax=1, colour="white",fill='#CCCCCC', size=0.1, alpha=0.06) +
+  geom_rect(aes(NULL,NULL,xmin=530-350,xmax=600-350),
+            ymin=0,ymax=1, colour="white",fill='#CCCCCC', size=0.1, alpha=0.06) +
+  geom_rect(aes(NULL,NULL,xmin=620-350,xmax=1390-350),
+            ymin=0,ymax=1, colour="white",fill='#CCCCCC', size=0.1, alpha=0.06) +
+  geom_rect(aes(NULL,NULL,xmin=760-350,xmax=1400-350),
+            ymin=0,ymax=1, colour="white",fill='#CCCCCC', size=0.1, alpha=0.06) +
+  geom_rect(aes(NULL,NULL,xmin=1410-350,xmax=1950-350),
+            ymin=0,ymax=1, colour="white",fill='#CCCCCC', size=0.1, alpha=0.06) +
+  geom_line(aes(x = Bands, y = value, group =Treatment, color = Treatment)) +
+  geom_text(aes(x=150, y = 0.6,label='Blue'), vjust = -0.5, size = 3, color = "black", angle = 90) +
+  geom_text(aes(x=250, y = 0.6,label='Green'), vjust = -0.5, size = 3, color = "black", angle = 90) +
+  geom_text(aes(x=360, y = 0.6,label='Red'), vjust = -0.5, size = 3, color = "black", angle = 90) +
+  geom_text(aes(x=770, y = 0.6,label='Near-infrared'), vjust = -0.5, size = 3, color = "black", angle = 90) +
+  geom_text(aes(x=1340, y = 0.6,label='Mid-infrared'), vjust = -0.5, size = 3, color = "black", angle = 90) +
+  labs(x = "Wavelength (nm)", y = "Mean Spectral Reflectance") +
+  scale_x_discrete(breaks = unique(df2$Bands)[seq(1, length(unique(df2$Bands)), by = 100)])+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = 'right',
+        legend.text = element_text(size = 6),
+        legend.title = element_text(size = 8),
+        legend.margin = margin(0, 0, 120, -45))
+```
+**Graphing of reflectances for Nitrogen levels**
+```{r}
+df_nit=df[,-c(2)]
+
+df_nit=df_nit %>%
+  group_by(NITROGEN) %>%
+  summarise_all(.funs = list(mean = mean), na.rm = TRUE)
+
+df_nit=df_nit%>% 
+  pivot_longer(cols=-NITROGEN,names_to = 'Bands')
+
+df_nit= df_nit%>%
+  mutate(Bands = gsub("_mean","", df_nit$Bands))
+
+df_nit$Bands <- factor(df_nit$Bands, levels = unique(df_nit$Bands))
+df_nit$NITROGENO=as.factor(df_nit$NITROGEN)
+
+colnames(df_nit)[1]='Nitrogen'
+df_nit%>%
+  ggplot() +
+  geom_line(aes(x = Bands, y = value, group =Nitrogen, color = Nitrogen)) +
+  labs(x = "Wavelength (nm)", y = "Mean Spectral Reflectance") +
+  scale_x_discrete(breaks = unique(df_nit$Bands)[seq(1, length(unique(df_nit$Bands)), by = 100)])+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = 'right',
+        legend.margin = margin(0,0,180,-45))
+```
+```{r}
+df_wat=df[,-c(1)]
+df_wat=df_wat %>%
+  group_by(WATER) %>%
+  summarise_all(.funs = list(mean = mean), na.rm = TRUE)
+
+df_wat=df_wat%>% 
+  pivot_longer(cols=-WATER,names_to = 'Bandas')
+
+df_wat= df_wat%>%
+  mutate(Bandas = gsub("_mean","", df_wat$Bandas))
+
+df_wat$Bandas <- factor(df_wat$Bandas, levels = unique(df_wat$Bandas))
+df_wat$WATER=as.factor(df_wat$WATER)
+colnames(df_wat)[1]='Stress'
+
+df_wat%>%
+  ggplot()+
+  geom_line(aes(x = Bandas, y = value, group =Stress, color = Stress)) +
+  labs(x = "Wavelength (nm)", y = "") +
+  scale_x_discrete(breaks = unique(df_wat$Bandas)[seq(1, length(unique(df_wat$Bandas)), by = 100)])+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.6, hjust=1),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = 'right',
+        legend.margin = margin(0,0,214,-45))
+```
+
+
+
